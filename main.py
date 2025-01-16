@@ -833,6 +833,15 @@ class ECommerceApp(QMainWindow):
             cursor.setPosition(max_length)
             text_edit.setTextCursor(cursor)
 
+    def toggle_campaign_date(self, value):
+        """Kampanya tarih alanını göster/gizle"""
+        if value == "Evet":
+            self.campaign_date_label.show()
+            self.campaign_date.show()
+        else:
+            self.campaign_date_label.hide()
+            self.campaign_date.hide()
+
 class ProductDialog(QDialog):
     def __init__(self, parent=None, product=None):
         super().__init__(parent)
