@@ -191,25 +191,105 @@ class ECommerceApp(QMainWindow):
             with open(PRODUCTS_FILE, 'r', encoding='utf-8') as f:
                 products = json.load(f)
         else:
-            # Örnek ürünler
+            # Örnek ürünler - güncellenmiş veri yapısı
             products = [
                 {
                     "id": 1,
                     "name": "Akıllı Telefon X",
                     "sku": "SKU001",
-                    "price": 5999.99,
+                    "status": "Aktif",
+                    "prices": {
+                        "TRL": {
+                            "critical_price": 4999.99,
+                            "price1": 5999.99,
+                            "price2": 5499.99,
+                            "price3": 5299.99,
+                            "price4": 4999.99,
+                            "kdv_included": True
+                        },
+                        "USD": {
+                            "critical_price": 180,
+                            "price1": 200,
+                            "price2": 190,
+                            "price3": 185,
+                            "price4": 180,
+                            "kdv_included": True
+                        },
+                        "EUR": {
+                            "critical_price": 160,
+                            "price1": 180,
+                            "price2": 170,
+                            "price3": 165,
+                            "price4": 160,
+                            "kdv_included": True
+                        },
+                        "GBP": {
+                            "critical_price": 140,
+                            "price1": 160,
+                            "price2": 150,
+                            "price3": 145,
+                            "price4": 140,
+                            "kdv_included": True
+                        }
+                    },
                     "stock": 50,
                     "categories": ["Elektronik"],
-                    "tags": ["Yeni", "Çok Satan"]
+                    "tags": ["Yeni", "Çok Satan"],
+                    "extra_fields": {
+                        "Barkod": "123456789",
+                        "GTIN": "",
+                        "MPN": "",
+                        "GTIP": ""
+                    }
                 },
                 {
                     "id": 2,
                     "name": "Spor Ayakkabı Y",
                     "sku": "SKU002",
-                    "price": 899.99,
+                    "status": "Aktif",
+                    "prices": {
+                        "TRL": {
+                            "critical_price": 799.99,
+                            "price1": 899.99,
+                            "price2": 849.99,
+                            "price3": 829.99,
+                            "price4": 799.99,
+                            "kdv_included": True
+                        },
+                        "USD": {
+                            "critical_price": 25,
+                            "price1": 30,
+                            "price2": 28,
+                            "price3": 27,
+                            "price4": 25,
+                            "kdv_included": True
+                        },
+                        "EUR": {
+                            "critical_price": 22,
+                            "price1": 27,
+                            "price2": 25,
+                            "price3": 24,
+                            "price4": 22,
+                            "kdv_included": True
+                        },
+                        "GBP": {
+                            "critical_price": 20,
+                            "price1": 25,
+                            "price2": 23,
+                            "price3": 22,
+                            "price4": 20,
+                            "kdv_included": True
+                        }
+                    },
                     "stock": 100,
                     "categories": ["Giyim"],
-                    "tags": ["İndirimli"]
+                    "tags": ["İndirimli"],
+                    "extra_fields": {
+                        "Barkod": "987654321",
+                        "GTIN": "",
+                        "MPN": "",
+                        "GTIP": ""
+                    }
                 }
             ]
             self.save_products(products)
@@ -274,34 +354,12 @@ class ECommerceApp(QMainWindow):
             stock_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             self.product_table.setItem(row, 5, stock_item)
             
-            # Fiyat gösterimi
-            price = product["price"]
-            currency = product.get("currency", "TRY")
-            
-            if currency == "TRY":
-                price_text = f"₺{price:.2f}"
-            else:
-                try:
-                    # Döviz kurunu al ve TL karşılığını hesapla
-                    tl_price = self.currency_manager.convert_to_try(price, currency)
-                    
-                    # Para birimi sembollerini belirle
-                    currency_symbols = {
-                        "USD": "$",
-                        "EUR": "€",
-                        "GBP": "£"
-                    }
-                    symbol = currency_symbols.get(currency, "")
-                    
-                    # Formatı: 250USD (7.525,00 TL)
-                    price_text = f"{symbol}{price:.2f}{currency} ({tl_price:,.2f} TL)"
-                    
-                    # Binlik ayracını nokta, ondalık ayracını virgül yap
-                    price_text = price_text.replace(",", "~").replace(".", ",").replace("~", ".")
-                    
-                except Exception as e:
-                    print(f"Döviz çevirme hatası: {e}")
-                    price_text = f"{symbol}{price:.2f} {currency}"
+            # Fiyat gösterimi - TRL fiyatını göster
+            try:
+                price = product["prices"]["TRL"]["price1"]
+                price_text = f"₺{price:,.2f}".replace(",", "~").replace(".", ",").replace("~", ".")
+            except:
+                price_text = "₺0,00"
             
             price_item = QTableWidgetItem(price_text)
             price_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
@@ -842,11 +900,93 @@ class ECommerceApp(QMainWindow):
             self.campaign_date_label.hide()
             self.campaign_date.hide()
 
+    def get_price_data(self):
+        """Fiyat tablosundaki verileri al"""
+        prices = {}
+        currencies = ["TRL", "USD", "EUR", "GBP"]
+        
+        for row, currency in enumerate(currencies):
+            prices[currency] = {
+                "critical_price": self.get_cell_value(row, 1),
+                "price1": self.get_cell_value(row, 2),
+                "price2": self.get_cell_value(row, 3),
+                "price3": self.get_cell_value(row, 4),
+                "price4": self.get_cell_value(row, 5),
+                "kdv_included": self.is_kdv_checked(row)
+            }
+        
+        return prices
+
+    def get_cell_value(self, row, col):
+        """Tablodaki hücre değerini al"""
+        try:
+            widget = self.price_table.cellWidget(row, col)
+            if isinstance(widget, QWidget):
+                # Kritik Fiyat veya normal fiyat input'u
+                input_widget = widget.layout().itemAt(0).widget()
+                if isinstance(input_widget, QLineEdit):
+                    value = input_widget.text().strip()
+                    return float(value) if value else 0
+            return 0
+        except Exception:
+            return 0
+
+    def is_kdv_checked(self, row):
+        """KDV checkbox durumunu kontrol et"""
+        try:
+            kdv_widget = self.price_table.cellWidget(row, 6)
+            if kdv_widget:
+                checkbox = kdv_widget.layout().itemAt(0).widget()
+                return checkbox.isChecked()
+            return False
+        except Exception:
+            return False
+
+    def save_product(self):
+        """Ürün verilerini doğrula ve kaydet"""
+        try:
+            # Zorunlu alan kontrolü
+            if not self.name_input.toPlainText().strip():
+                self.name_input.setStyleSheet("border: 1px solid red;")
+                QMessageBox.warning(self, "Uyarı", "Lütfen ürün adını girin!")
+                return
+                
+            if not self.sku_input.text().strip():
+                self.sku_input.setStyleSheet("border: 1px solid red;")
+                QMessageBox.warning(self, "Uyarı", "Lütfen stok kodunu girin!")
+                return
+            
+            # Ürün verilerini topla
+            self.product = {
+                "name": self.name_input.toPlainText().strip(),
+                "sku": self.sku_input.text().strip(),
+                "status": self.status_combo.currentText(),
+                "category": self.category_combo.currentText(),
+                "extra_fields": {
+                    field: widget.text().strip()
+                    for field, widget in self.extra_inputs.items()
+                },
+                "prices": self.get_price_data(),
+                "stock": 0,  # Varsayılan stok
+                "tags": [],  # Varsayılan etiketler
+                "categories": [self.category_combo.currentText()]  # Kategori listesi
+            }
+            
+            self.accept()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"Ürün kaydedilirken bir hata oluştu: {str(e)}")
+
 class ProductDialog(QDialog):
     def __init__(self, parent=None, product=None):
         super().__init__(parent)
+        self.parent_window = parent
         self.product = product or {}
-        self.setWindowTitle("Yeni Ürün" if not product else "Ürün Düzenle")
+        self.extra_inputs = {}
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.setWindowTitle("Yeni Ürün" if not self.product else "Ürün Düzenle")
         self.setMinimumWidth(1000)
         self.setMinimumHeight(800)
         
@@ -856,6 +996,7 @@ class ProductDialog(QDialog):
         
         # Üst buton grubu
         button_group = QHBoxLayout()
+        self.tab_buttons = {}
         buttons = ["Genel Bilgiler", "Resimler", "Uyumluluklar", "Önceki Satışlar"]
         
         for text in buttons:
@@ -884,43 +1025,33 @@ class ProductDialog(QDialog):
             """)
             if text == "Genel Bilgiler":
                 btn.setChecked(True)
+            self.tab_buttons[text] = btn
             button_group.addWidget(btn)
             btn.clicked.connect(lambda checked, b=text: self.switch_tab(b))
         
         layout.addLayout(button_group)
         
-        # Stacked widget for different tabs
+        # Stacked widget
         self.stack = QStackedWidget()
         
         # Genel Bilgiler sayfası
+        self.setup_general_page()
+        
+        layout.addWidget(self.stack)
+
+    def setup_general_page(self):
         general_page = QWidget()
         general_layout = QVBoxLayout(general_page)
         general_layout.setSpacing(20)
         
         # Zorunlu Alanlar Grubu
         required_group = QGroupBox("Zorunlu Alanlar")
-        required_group.setStyleSheet("""
-            QGroupBox {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-                margin-top: 15px;
-                padding: 15px;
-            }
-            QGroupBox::title {
-                color: #495057;
-                padding: 0 10px;
-                background-color: white;
-                font-weight: bold;
-            }
-        """)
         required_layout = QGridLayout()
-        required_layout.setSpacing(15)
         
         # Ürün Adı
         required_layout.addWidget(QLabel("Ürün Adı *"), 0, 0)
-        self.name_input = QTextEdit()  # QLineEdit yerine QTextEdit kullan
-        self.name_input.setMaximumHeight(100)  # Maksimum yükseklik
+        self.name_input = QTextEdit()
+        self.name_input.setMaximumHeight(100)
         self.name_input.setPlaceholderText("Ürün adını girin (maksimum 300 karakter)")
         self.name_input.textChanged.connect(lambda: self.limit_text(self.name_input, 300))
         required_layout.addWidget(self.name_input, 0, 1)
@@ -930,7 +1061,6 @@ class ProductDialog(QDialog):
         self.sku_input = QLineEdit()
         self.sku_input.setMaxLength(30)
         self.sku_input.setFixedWidth(200)
-        self.sku_input.setPlaceholderText("Stok kodunu girin")
         required_layout.addWidget(self.sku_input, 1, 1)
         
         # Durum
@@ -941,53 +1071,37 @@ class ProductDialog(QDialog):
         required_layout.addWidget(self.status_combo, 2, 1)
         
         # Kategori
-        cat_layout = QHBoxLayout()
         required_layout.addWidget(QLabel("Kategori *"), 3, 0)
         self.category_combo = QComboBox()
         self.category_combo.setFixedWidth(200)
         self.category_combo.addItems(self.get_categories())
-        cat_layout.addWidget(self.category_combo)
-        
-        cat_tree_btn = QPushButton("K")
-        cat_tree_btn.setFixedSize(30, 30)
-        cat_tree_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-                border-radius: 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5a6268;
-            }
-        """)
-        cat_tree_btn.clicked.connect(self.show_category_tree)
-        cat_layout.addWidget(cat_tree_btn)
-        cat_layout.addStretch()
-        required_layout.addLayout(cat_layout, 3, 1)
-        
-        # Kampanya
-        required_layout.addWidget(QLabel("Kampanya *"), 4, 0)
-        self.campaign_combo = QComboBox()
-        self.campaign_combo.addItems(["Hayır", "Evet"])
-        self.campaign_combo.setFixedWidth(200)
-        self.campaign_combo.currentTextChanged.connect(self.toggle_campaign_date)
-        required_layout.addWidget(self.campaign_combo, 4, 1)
-        
-        # Kampanya Bitiş Tarihi
-        self.campaign_date_label = QLabel("Kampanya Bitiş Tarihi *")
-        self.campaign_date_label.hide()
-        required_layout.addWidget(self.campaign_date_label, 5, 0)
-        self.campaign_date = QLineEdit()
-        self.campaign_date.setPlaceholderText("GG/AA/YYYY")
-        self.campaign_date.setFixedWidth(200)
-        self.campaign_date.hide()
-        required_layout.addWidget(self.campaign_date, 5, 1)
+        required_layout.addWidget(self.category_combo, 3, 1)
         
         required_group.setLayout(required_layout)
         general_layout.addWidget(required_group)
         
-        # Ek Alanlar Grubu
+        # Ek Alanlar ve Fiyatlar gruplarını ekle
+        self.setup_extra_fields(general_layout)
+        self.setup_price_table(general_layout)
+        
+        # Kaydet/İptal butonları
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+        
+        cancel_btn = QPushButton("İptal")
+        cancel_btn.clicked.connect(self.reject)
+        buttons_layout.addWidget(cancel_btn)
+        
+        save_btn = QPushButton("Kaydet")
+        save_btn.clicked.connect(self.save_product)
+        buttons_layout.addWidget(save_btn)
+        
+        general_layout.addLayout(buttons_layout)
+        
+        self.stack.addWidget(general_page)
+
+    def setup_extra_fields(self, parent_layout):
+        """Ek Alanlar grubunu oluştur"""
         extra_group = QGroupBox("Ek Alanlar")
         extra_group.setStyleSheet("""
             QGroupBox {
@@ -1006,6 +1120,8 @@ class ProductDialog(QDialog):
         """)
         extra_layout = QGridLayout()
         extra_layout.setSpacing(15)
+        extra_layout.setColumnMinimumWidth(1, 300)  # Input alanı için minimum genişlik
+        extra_layout.setColumnStretch(2, 1)  # Sağ tarafı esnek bırak
 
         extra_fields = {
             "Barkod": 30,
@@ -1016,18 +1132,22 @@ class ProductDialog(QDialog):
 
         self.extra_inputs = {}
         for i, (field, max_length) in enumerate(extra_fields.items()):
-            extra_layout.addWidget(QLabel(field), i, 0)
+            label = QLabel(field)
+            label.setFixedWidth(100)  # Etiket genişliğini sabitle
+            extra_layout.addWidget(label, i, 0, Qt.AlignLeft)
+            
             input_field = QLineEdit()
             input_field.setMaxLength(max_length)
             input_field.setFixedWidth(200)
             input_field.setPlaceholderText(f"{field} girin (max {max_length} karakter)")
             self.extra_inputs[field] = input_field
-            extra_layout.addWidget(input_field, i, 1)
+            extra_layout.addWidget(input_field, i, 1, Qt.AlignLeft)
 
         extra_group.setLayout(extra_layout)
-        general_layout.addWidget(extra_group)
+        parent_layout.addWidget(extra_group)
 
-        # Fiyatlar Grubu
+    def setup_price_table(self, parent_layout):
+        """Fiyatlar grubunu oluştur"""
         price_group = QGroupBox("Fiyatlar")
         price_group.setStyleSheet("""
             QGroupBox {
@@ -1043,25 +1163,8 @@ class ProductDialog(QDialog):
                 background-color: white;
                 font-weight: bold;
             }
-        """)
-        price_layout = QVBoxLayout()
-
-        # Fiyat tablosu
-        self.price_table = QTableWidget()
-        self.price_table.setColumnCount(7)  # Kritik Fiyat + 5 Fiyat + KDV
-        self.price_table.setRowCount(4)  # TRL, USD, EUR, GBP
-        self.price_table.setHorizontalHeaderLabels([
-            "Para Birimi", "Kritik Fiyat", "Fiyat 1", "Fiyat 2", 
-            "Fiyat 3", "Fiyat 4", "KDV Dahil"
-        ])
-        self.price_table.setVerticalHeaderLabels(["TRL", "USD", "EUR", "GBP"])
-
-        # Tablo stilini ayarla
-        self.price_table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #dee2e6;
-                border: 1px solid #dee2e6;
-                border-radius: 4px;
             }
             QHeaderView::section {
                 background-color: #f8f9fa;
@@ -1070,10 +1173,87 @@ class ProductDialog(QDialog):
                 border-bottom: 2px solid #dee2e6;
                 font-weight: bold;
             }
-            QTableWidget::item {
-                padding: 8px;
-            }
         """)
+        
+        price_layout = QVBoxLayout()
+        price_layout.setAlignment(Qt.AlignCenter)
+
+        # Fiyat tablosu
+        self.price_table = QTableWidget()
+        self.price_table.setColumnCount(7)
+        self.price_table.setRowCount(4)
+        self.price_table.setHorizontalHeaderLabels([
+            "Para Birimi", "Kritik Fiyat", "Fiyat 1", "Fiyat 2", 
+            "Fiyat 3", "Fiyat 4", "KDV Dahil"
+        ])
+        
+        # Tablo genişliğini ayarla
+        header = self.price_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Fixed)  # Para Birimi
+        header.setSectionResizeMode(1, QHeaderView.Fixed)  # Kritik Fiyat
+        for i in range(2, 6):  # Fiyatlar
+            header.setSectionResizeMode(i, QHeaderView.Fixed)
+        header.setSectionResizeMode(6, QHeaderView.Fixed)  # KDV Dahil
+        
+        # Sütun genişlikleri
+        self.price_table.setColumnWidth(0, 100)  # Para Birimi
+        self.price_table.setColumnWidth(1, 120)  # Kritik Fiyat
+        for i in range(2, 6):
+            self.price_table.setColumnWidth(i, 100)  # Fiyatlar
+        self.price_table.setColumnWidth(6, 120)  # KDV Dahil
+
+        # Kategori alanını düzenle
+        def setup_category_field(layout, row, col):
+            """Kategori alanını oluştur"""
+            layout.addWidget(QLabel("Kategori *"), row, col)
+            
+            # Kategori container
+            cat_container = QWidget()
+            cat_layout = QHBoxLayout(cat_container)
+            cat_layout.setContentsMargins(0, 0, 0, 0)
+            cat_layout.setSpacing(5)
+            
+            # Kategori combo box
+            self.category_combo = QComboBox()
+            self.category_combo.setFixedWidth(200)
+            self.update_categories()  # Kategorileri güncelle
+            cat_layout.addWidget(self.category_combo)
+            
+            # Kategori ağacı butonu
+            cat_tree_btn = QPushButton("K")
+            cat_tree_btn.setFixedSize(30, 30)
+            cat_tree_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #6c757d;
+                    color: white;
+                    border-radius: 15px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #5a6268;
+                }
+            """)
+            cat_tree_btn.clicked.connect(self.show_category_tree)
+            cat_layout.addWidget(cat_tree_btn)
+            
+            layout.addWidget(cat_container, row, col + 1)
+
+        def update_categories(self):
+            """Kategori listesini güncelle"""
+            try:
+                categories = self.parent_window.get_categories()
+                current_text = self.category_combo.currentText()
+                
+                self.category_combo.clear()
+                self.category_combo.addItems(categories)
+                
+                # Önceki seçimi koru
+                if current_text:
+                    index = self.category_combo.findText(current_text)
+                    if index >= 0:
+                        self.category_combo.setCurrentIndex(index)
+            except Exception as e:
+                print(f"Kategori güncelleme hatası: {e}")
 
         # Her para birimi için satırları oluştur
         for row in range(4):
@@ -1145,103 +1325,84 @@ class ProductDialog(QDialog):
             
             self.price_table.setCellWidget(row, 6, kdv_widget)
 
-        # Sütun genişliklerini ayarla
-        self.price_table.setColumnWidth(0, 100)  # Para Birimi
-        self.price_table.setColumnWidth(1, 120)  # Kritik Fiyat
-        for i in range(2, 6):
-            self.price_table.setColumnWidth(i, 100)  # Fiyatlar
-        self.price_table.setColumnWidth(6, 120)  # KDV Dahil
-
         price_layout.addWidget(self.price_table)
         price_group.setLayout(price_layout)
-        general_layout.addWidget(price_group)
+        parent_layout.addWidget(price_group)
 
-        # Kaydet ve İptal butonları
-        buttons_layout = QHBoxLayout()
-        buttons_layout.addStretch()
+    def get_categories(self):
+        try:
+            if hasattr(self.parent_window, 'get_categories'):
+                return self.parent_window.get_categories()
+            return ["Genel", "Elektronik", "Elektronik/Powerbank", "Giyim", "Ev & Yaşam"]
+        except Exception as e:
+            print(f"Kategori getirme hatası: {e}")
+            return ["Genel"]
 
-        cancel_btn = QPushButton("İptal")
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #5a6268;
-            }
-        """)
-        cancel_btn.clicked.connect(self.reject)
-        buttons_layout.addWidget(cancel_btn)
+    def limit_text(self, text_edit, max_length):
+        text = text_edit.toPlainText()
+        if len(text) > max_length:
+            text_edit.setPlainText(text[:max_length])
+            cursor = text_edit.textCursor()
+            cursor.setPosition(max_length)
+            text_edit.setTextCursor(cursor)
 
-        save_btn = QPushButton("Kaydet")
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745;
-                color: white;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-        """)
-        save_btn.clicked.connect(self.save_product)
-        buttons_layout.addWidget(save_btn)
-
-        general_layout.addLayout(buttons_layout)
-        self.stack.addWidget(general_page)
-        layout.addWidget(self.stack)
+    def switch_tab(self, tab_name):
+        for btn in self.tab_buttons.values():
+            btn.setChecked(False)
+        self.tab_buttons[tab_name].setChecked(True)
+        
+        if tab_name == "Genel Bilgiler":
+            self.stack.setCurrentIndex(0)
 
     def save_product(self):
-        """Ürün verilerini doğrula ve kaydet"""
-        # Zorunlu alanları kontrol et
-        if not self.name_input.toPlainText().strip():
-            self.name_input.setStyleSheet("border: 1px solid red;")
-            QMessageBox.warning(self, "Uyarı", "Lütfen ürün adını girin!")
-            return
-        
-        if not self.sku_input.text().strip():
-            self.sku_input.setStyleSheet("border: 1px solid red;")
-            QMessageBox.warning(self, "Uyarı", "Lütfen stok kodunu girin!")
-            return
-        
-        # Kampanya tarihini kontrol et
-        if self.campaign_combo.currentText() == "Evet":
-            if not self.campaign_date.text().strip():
-                self.campaign_date.setStyleSheet("border: 1px solid red;")
-                QMessageBox.warning(self, "Uyarı", "Lütfen kampanya bitiş tarihini girin!")
-                return
-            try:
-                datetime.strptime(self.campaign_date.text().strip(), "%d/%m/%Y")
-            except ValueError:
-                self.campaign_date.setStyleSheet("border: 1px solid red;")
-                QMessageBox.warning(self, "Uyarı", "Lütfen geçerli bir tarih girin (GG/AA/YYYY)!")
-                return
-        
         try:
+            # Zorunlu alan kontrolü
+            if not self.name_input.toPlainText().strip():
+                QMessageBox.warning(self, "Uyarı", "Lütfen ürün adını girin!")
+                return
+                
+            if not self.sku_input.text().strip():
+                QMessageBox.warning(self, "Uyarı", "Lütfen stok kodunu girin!")
+                return
+            
             # Ürün verilerini topla
             self.product = {
                 "name": self.name_input.toPlainText().strip(),
                 "sku": self.sku_input.text().strip(),
                 "status": self.status_combo.currentText(),
                 "category": self.category_combo.currentText(),
-                "campaign": {
-                    "active": self.campaign_combo.currentText() == "Evet",
-                    "end_date": self.campaign_date.text().strip() if self.campaign_combo.currentText() == "Evet" else None
-                },
                 "extra_fields": {
                     field: widget.text().strip()
                     for field, widget in self.extra_inputs.items()
                 },
-                "prices": self.get_price_data()
+                "prices": self.get_price_data(),
+                "stock": 0,  # Varsayılan stok
+                "tags": [],  # Varsayılan etiketler
+                "categories": [self.category_combo.currentText()]  # Kategori listesi
             }
             
             self.accept()
             
         except Exception as e:
             QMessageBox.critical(self, "Hata", f"Ürün kaydedilirken bir hata oluştu: {str(e)}")
+
+    def show_critical_price_info(self):
+        """Kritik fiyat bilgilendirmesi göster"""
+        QMessageBox.information(
+            self,
+            "Kritik Fiyat Bilgisi",
+            "Bu fiyat şu an için bu üründeki minimum satılabilir fiyattır. "
+            "Bu fiyatın altında teklif verilemez."
+        )
+
+    def show_kdv_info(self):
+        """KDV bilgilendirmesi göster"""
+        QMessageBox.information(
+            self,
+            "KDV Bilgisi",
+            "KDV dahil ise check box işaretlenir. "
+            "KDV hariç fiyat ise check box boş bırakılır."
+        )
 
     def get_price_data(self):
         """Fiyat tablosundaki verileri al"""
@@ -1284,6 +1445,176 @@ class ProductDialog(QDialog):
             return False
         except Exception:
             return False
+
+    def setup_images_page(self):
+        """Resimler sekmesini oluştur"""
+        self.images_page = QWidget()
+        layout = QVBoxLayout(self.images_page)
+        
+        # Görsel yükleme alanı
+        upload_group = QGroupBox("Görsel Yükleme")
+        upload_layout = QVBoxLayout()
+        
+        # Sürükle-bırak alanı
+        drop_area = QLabel("Görselleri buraya sürükleyin veya seçmek için tıklayın")
+        drop_area.setStyleSheet("""
+            QLabel {
+                border: 2px dashed #ccc;
+                border-radius: 8px;
+                padding: 40px;
+                background-color: #f8f9fa;
+                color: #6c757d;
+            }
+        """)
+        drop_area.setAlignment(Qt.AlignCenter)
+        upload_layout.addWidget(drop_area)
+        
+        # Görsel seçme butonu
+        select_btn = QPushButton("Görsel Seç")
+        select_btn.clicked.connect(self.select_images)
+        upload_layout.addWidget(select_btn)
+        
+        upload_group.setLayout(upload_layout)
+        layout.addWidget(upload_group)
+        
+        # Yüklenen görseller grid'i
+        self.images_grid = QGridLayout()
+        self.images_grid.setSpacing(10)
+        
+        images_group = QGroupBox("Yüklenen Görseller")
+        images_group.setLayout(self.images_grid)
+        layout.addWidget(images_group)
+        
+        self.stack.addWidget(self.images_page)
+
+    def setup_compatibility_page(self):
+        """Uyumluluklar sekmesini oluştur"""
+        self.compatibility_page = QWidget()
+        layout = QVBoxLayout(self.compatibility_page)
+        
+        # Uyumlu platformlar
+        platforms_group = QGroupBox("Uyumlu Platformlar")
+        platforms_layout = QVBoxLayout()
+        
+        platforms = ["N11", "Trendyol", "HepsiBurada", "GittiGidiyor", "Amazon"]
+        self.platform_checkboxes = {}
+        
+        for platform in platforms:
+            cb = QCheckBox(platform)
+            self.platform_checkboxes[platform] = cb
+            platforms_layout.addWidget(cb)
+        
+        platforms_group.setLayout(platforms_layout)
+        layout.addWidget(platforms_group)
+        
+        # Platform özellikleri
+        settings_group = QGroupBox("Platform Özellikleri")
+        settings_layout = QGridLayout()
+        
+        # Platform bazlı özellikler...
+        
+        settings_group.setLayout(settings_layout)
+        layout.addWidget(settings_group)
+        
+        self.stack.addWidget(self.compatibility_page)
+
+    def setup_sales_page(self):
+        """Önceki Satışlar sekmesini oluştur"""
+        self.sales_page = QWidget()
+        layout = QVBoxLayout(self.sales_page)
+        
+        # Satış istatistikleri
+        stats_group = QGroupBox("Satış İstatistikleri")
+        stats_layout = QGridLayout()
+        
+        stats = [
+            ("Toplam Satış", "0"),
+            ("Toplam Ciro", "0 TL"),
+            ("Ortalama Satış Fiyatı", "0 TL"),
+            ("İlk Satış Tarihi", "-"),
+            ("Son Satış Tarihi", "-")
+        ]
+        
+        for i, (label, value) in enumerate(stats):
+            stats_layout.addWidget(QLabel(label), i, 0)
+            stats_layout.addWidget(QLabel(value), i, 1)
+        
+        stats_group.setLayout(stats_layout)
+        layout.addWidget(stats_group)
+        
+        # Satış geçmişi tablosu
+        history_group = QGroupBox("Satış Geçmişi")
+        history_layout = QVBoxLayout()
+        
+        table = QTableWidget()
+        table.setColumnCount(5)
+        table.setHorizontalHeaderLabels([
+            "Tarih", "Platform", "Miktar", "Birim Fiyat", "Toplam"
+        ])
+        
+        history_layout.addWidget(table)
+        history_group.setLayout(history_layout)
+        layout.addWidget(history_group)
+        
+        self.stack.addWidget(self.sales_page)
+
+    def select_images(self):
+        """Görsel seçme dialog'unu göster"""
+        file_names, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Görsel Seç",
+            "",
+            "Resim Dosyaları (*.png *.jpg *.jpeg)"
+        )
+        
+        if file_names:
+            self.add_images(file_names)
+
+    def add_images(self, file_paths):
+        """Seçilen görselleri grid'e ekle"""
+        row = col = 0
+        max_col = 4
+        
+        for path in file_paths:
+            if col >= max_col:
+                col = 0
+                row += 1
+            
+            try:
+                # Görsel container
+                img_container = QWidget()
+                container_layout = QVBoxLayout(img_container)
+                
+                # Görsel
+                img_label = QLabel()
+                img_label.setFixedSize(150, 150)
+                pixmap = QPixmap(path).scaled(
+                    146, 146,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation
+                )
+                img_label.setPixmap(pixmap)
+                img_label.setAlignment(Qt.AlignCenter)
+                
+                # Dosya adı
+                name_label = QLabel(os.path.basename(path))
+                name_label.setAlignment(Qt.AlignCenter)
+                
+                # Sil butonu
+                delete_btn = QPushButton("Sil")
+                delete_btn.clicked.connect(
+                    lambda checked, w=img_container: w.deleteLater()
+                )
+                
+                container_layout.addWidget(img_label)
+                container_layout.addWidget(name_label)
+                container_layout.addWidget(delete_btn)
+                
+                self.images_grid.addWidget(img_container, row, col)
+                col += 1
+                
+            except Exception as e:
+                print(f"Görsel yükleme hatası: {e}")
 
 def create_no_image():
     """No-image placeholder oluştur"""
