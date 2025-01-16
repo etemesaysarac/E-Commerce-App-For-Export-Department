@@ -2,12 +2,13 @@
   {
     "name": "Genel",
     "sub_categories": [
-      "Deneme"
+      "aaa"
     ]
   },
   "Elektronik",
   "Elektronik/Powerbank",
   "Elektronik/Telefon Aksesuarları",
   "Giyim",
-  "Ev & Yaşam"
+  "Ev & Yaşam",
+  "etem"
 ]
